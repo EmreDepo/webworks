@@ -1,0 +1,129 @@
+Troubleshooting Using systemctl
+The first step when you are troubleshooting an AH00558: Could not reliably determine the server's fully qualified domain name message is to check Apache’s status using systemctl. The output from systemctl will in many cases contain all the information that you need to resolve the message.
+
+On Ubuntu and Debian-derived Linux distributions, run the following to check Apache’s status:
+
+Ubuntu and Debian Systems
+sudo systemctl status apache2.service -l --no-pager
+On Rocky Linux, Fedora, and Red Hat-derived systems, use this command to examine Apache’s status:
+
+Rocky and Red Hat Systems
+sudo systemctl status httpd.service -l --no-pager
+The -l flag will ensure that systemctl outputs the entire contents of a line, instead of substituting in ellipses (…) for long lines. The --no-pager flag will output the entire log to your screen without invoking a tool like less that only shows a screen of content at a time.
+
+You should receive output that is similar to the following:
+
+Output
+● apache2.service - The Apache HTTP Server
+   Loaded: loaded (/lib/systemd/system/apache2.service; enabled; vendor preset: enabled)
+  Drop-In: /lib/systemd/system/apache2.service.d
+           └─apache2-systemd.conf
+   Active: active (running) since Wed 2020-07-29 14:30:03 UTC; 33min ago
+  Process: 34 ExecStart=/usr/sbin/apachectl start (code=exited, status=0/SUCCESS)
+ Main PID: 46 (apache2)
+    Tasks: 55 (limit: 2344)
+   CGroup: /system.slice/apache2.service
+           ├─46 /usr/sbin/apache2 -k start
+           ├─47 /usr/sbin/apache2 -k start
+           └─48 /usr/sbin/apache2 -k start
+
+Jul 29 14:30:03 68e2cf19f3f1 systemd[1]: Starting The Apache HTTP Server...
+Jul 29 14:30:03 68e2cf19f3f1 apachectl[34]: AH00558: apache2: Could not reliably determine the server's fully qualified domain name, using 172.17.0.2. Set the 'ServerName' directive globally to suppress this message
+Jul 29 14:30:03 68e2cf19f3f1 systemd[1]: Started The Apache HTTP Server.
+The highlighted line that contains the AH00558 message is the important one. Essentially, it informs you that Apache couldn’t find a valid ServerName directive in its configuration file, so it will use the first IP address it detects. In this example, it’s the server’s public IP address: 172.17.02. If you are troubleshooting an AH00558 message, the IP address that is detected may be different, or it may be a human readable DNS name.
+
+If your systemctl output contains an auto-detected value of any IP address or hostname, skip to the last section of this tutorial, Setting a Global ServerName Directive to resolve the issue. In that section you will configure Apache with a safe default ServerName value using the IP address for localhost: 127.0.0.1.
+
+If your systemctl output does not indicate a value that you can use for the ServerName directive, the next section of this tutorial explains how to examine the systemd logs using journalctl to locate an AH00558 message.
+
+Troubleshooting Using journalctl
+To examine the systemd logs for Apache you will use the journalctl command. When invoking journalctl, there are two specific flags that will help you locate specific messages if there is a large volume of log entries.
+
+The first flag that you will add to the journalctl invocation is the --since today flag. It will limit the output of the command to log entries beginning at 00:00:00 of the current day only. Using this option will help restrict the volume of log entries that you need to examine when checking for errors.
+
+The second flag that you will use is the same --no-pager option that you used with systemctl, which will output the entire log to your screen at once.
+
+On Ubuntu and Debian-derived systems, run the following command:
+
+sudo journalctl -u apache2.service --since today --no-pager
+On Rocky Linux, Fedora, and Red Hat-derived systems, use this command to inspect the logs:
+
+sudo journalctl -u httpd.service --since today --no-pager
+If your Apache server is generating an AH00558 message, look through the journalctl command output for lines like the following:
+
+Output
+-- Logs begin at Wed 2020-07-29 14:30:02 UTC, end at Wed 2020-07-29 14:45:03 UTC. --
+. . .
+Jul 29 14:30:03 68e2cf19f3f1 systemd[1]: Starting The Apache HTTP Server...
+Jul 29 14:30:03 68e2cf19f3f1 apachectl[34]: AH00558: apache2: Could not reliably determine the server's fully qualified domain name, using 172.17.0.2. Set the 'ServerName' directive globally to suppress this message
+Jul 29 14:30:03 68e2cf19f3f1 systemd[1]: Started The Apache HTTP Server.
+The second line of output is the AH00558 message. The line includes the server’s public IP address, which is the address that Apache automatically detects and sets as a default at runtime. With this message as confirmation of an AH00558 error, you can proceed to the Setting a Global ServerName Directive to resolve the issue.
+
+Otherwise, the next section explains how to diagnose an AH00558 error message using the apachectl command.
+
+Troubleshooting using apachectl
+An AH00558: Could not reliably determine the server's fully qualified domain name error can be detected using Apache’s apachectl utility. With apachectl you can catch messages like these before reloading or restarting Apache, and you can avoid having to search through systemctl and journalctl logs to locate errors.
+
+To check your Apache configuration for an AH00558 message, run the following command:
+
+sudo apachectl configtest
+You should receive output like the following if your server is affected by an AH00558 error message:
+
+Output
+AH00558: apache2: Could not reliably determine the server's fully qualified domain name, using 172.17.0.2. Set the 'ServerName' directive globally to suppress this message
+Syntax OK
+As with the previous sections in this tutorial that used systemctl and journalctl to locate AH00558 messages, the line that contains the AH00558 message, highlighted in the previous example, is the important one. Again note that the IP address 172.17.0.2 in this example may be different on your server.
+
+The next section of this tutorial explains how to set the ServerName directive to resolve AH00558 error messages.
+
+Setting a Global ServerName Directive
+To resolve an AH00558: Could not reliably determine the server's fully qualified domain name error message, you will need to add a ServerName directive to your Apache configuration. Apache uses the ServerName directive to map incoming HTTP requests to an IP address or DNS hostname using VirtualHost directives in order to handle requests for multiple sites using a single server.
+
+The error message notes that a global ServerName directive should also be set. Doing so will ensure that Apache can gracefully handle incoming requests that do not map to a VirtualHost without generating additional errors.
+
+For maximum compatibility with various Apache configurations, use the value of 127.0.0.1 for your global ServerName directive. You can use a different IP address or DNS name that corresponds to your server’s configuration if you need to, but it is safest to use 127.0.0.1.
+
+On Ubuntu and Debian-derived systems, open the /etc/apache2/apache2.conf file with root privileges using nano or your preferred text editor:
+
+sudo nano /etc/apache2/apache2.conf
+Add a line containing ServerName 127.0.0.1 to the end of the file:
+
+/etc/apache2/apache2.conf
+. . .
+# Include the virtual host configurations:
+IncludeOptional sites-enabled/*.conf
+
+# vim: syntax=apache ts=4 sw=4 sts=4 sr noet
+ServerName 127.0.0.1
+On Rocky Linux, Fedora, and Red Hat-derived systems, open the /etc/httpd/conf/httpd.conf file with root privileges using nano or your preferred text editor:
+
+sudo nano /etc/httpd/conf/httpd.conf
+Add the ServerName 127.0.0.1 line to the end of the file:
+
+/etc/httpd/conf/httpd.conf
+. . .
+# Supplemental configuration
+#
+# Load config files in the "/etc/httpd/conf.d" directory, if any.
+IncludeOptional conf.d/*.conf
+ServerName 127.0.0.1
+Save and close the file when you are finished. If you used nano, do so by pressing CTRL + X, Y, and then ENTER.
+
+Once you have added the ServerName directive to your configuration, run apachectl to test that the configuration is valid.
+
+sudo apachectl configtest
+A successful apachectl configtest invocation should result in output like this:
+
+Output
+Syntax OK
+You can now reload Apache’s configuration using the appropriate systemctl reload command for your Linux distribution.
+
+On Ubuntu and Debian-derived systems, run the following:
+
+sudo systemctl reload apache2.service
+On Rocky Linux, Fedora, and Red Hat-derived systems use this command to reload Apache’s configuration:
+
+sudo systemctl reload httpd.service
+After you reload Apache, the AH00558 error message will no longer appear in your logs. You can confirm the messages are silenced by running any of the three systemctl, journalctl, or apachectl commands that are demonstrated in this tutorial.
+
+Conclusion
