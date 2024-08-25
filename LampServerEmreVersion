@@ -1,0 +1,99 @@
+#Sistem Debian-12 Üzerine Kurgulanmıştır. 
+apt-get install sudo -y
+sudo apt-get update && sudo apt-get upgrade -y
+
+#Sunucu adını değiştirelim. 
+sudo hostnamectl set-hostname gender.telpass-ltd.live
+
+#Sunucu Hostname Ayarlarını yapalım
+
+nano /etc/hosts
+
+127.0.0.1       localhost
+127.0.1.1    gender.telpass-ltd.live gender
+127.0.0.1       gender
+# The following lines are desirable for IPv6 capable hosts
+::1     localhost ip6-localhost ip6-loopback
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+161.97.168.89 gender.telpass-ltd.live gender
+
+#dns ayarlarını değiştirelim
+
+nano /etc/resolv.conf
+
+domain contaboserver.net
+search contaboserver.net
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+
+#Sunucu Restart edip ayarları etkin kılalım
+
+# Apache Kurulumunu yapalım
+sudo apt-get update
+sudo apt-get install apache2
+
+#Mariadb Server kurulumunu yapalım
+
+sudo apt-get install mariadb-server -y
+
+mysql_secure_installation ile güvenlik ayarlarını yapalım
+
+nano /etc/mysql/mariadb.conf.d/50-server.cnf 
+
+#Kullanıcıları oluşturalım
+CREATE USER 'toor'@'localhost' IDENTIFIED BY 'toor';
+GRANT ALL PRIVILEGES ON * . * TO 'toor'@'localhost';
+FLUSH PRIVILEGES;
+
+CREATE USER 'toor'@'%' IDENTIFIED BY 'toor';
+GRANT ALL PRIVILEGES ON * . * TO 'toor'@'%';
+FLUSH PRIVILEGES;
+
+#Php işlerinde kullanılması için bir kullanıcı daha açalım
+CREATE USER 'paneluser'@'localhost' IDENTIFIED BY 'paneluser';
+GRANT ALL PRIVILEGES ON * . * TO 'paneluser'@'localhost';
+FLUSH PRIVILEGES;
+
+exit
+
+# PHP 7.4  kurulumuna geçelim
+
+sudo apt-get install -y software-properties-common
+sudo apt-get install -y apt-transport-https lsb-release ca-certificates curl
+sudo curl -sSL https://packages.sury.org/php/README.txt | sudo bash -x
+sudo apt-get update
+sudo apt-get install -y php7.4 php7.4-cli php7.4-fpm php7.4-mysql php7.4-xml php7.4-curl php7.4-gd php7.4-mbstring php7.4-zip php7.4-bcmath php7.4-intl php7.4-soap php7.4-readline
+
+sudo apt-get install -y libapache2-mod-php7.4
+
+sudo a2enmod php7.4
+
+sudo systemctl restart apache2
+sudo systemctl restart php7.4-fpm
+
+## Php.ini sayfasındaki hata gösterme ve modul ayarlarını yapalım
+
+#Virtual Host ayarlarını yapalım
+sudo nano /etc/apache2/sites-available/gender.telpass-ltd.live.conf
+
+<VirtualHost *:80>
+    ServerAdmin webmaster@gender.telpass-ltd.live
+    ServerName gender.telpass-ltd.live
+    DocumentRoot /var/www/gender.telpass-ltd.live
+
+    ErrorLog ${APACHE_LOG_DIR}/error.log
+    CustomLog ${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>
+
+sudo mkdir -p /var/www/gender.telpass-ltd.live
+sudo chown -R www-data:www-data /var/www/gender.telpass-ltd.live
+sudo chmod -R 755 /var/www/gender.telpass-ltd.live
+
+
+sudo a2ensite gender.telpass-ltd.live.conf
+sudo systemctl reload apache2
+
+
+
+gender.telpass-ltd.live
